@@ -386,8 +386,8 @@ void webSocketStatus(final String status) {
     // Refresh after a second delay. This gives the 'websocket' attribute time to be update
     runIn(1, refreshInternalDelay, [data: [zid: null, quiet: true]])
 
-    // Schedule silent connect for ~4 hours from now. Should happen just before Ring automatically disconnects us
-    runIn(60 * 60 * 4 - new Random().nextInt(60), silentWebsocketReconnect)
+    // Schedule silent reconnect for just under 4 hours from now. Should happen just before Ring automatically disconnects us
+    runIn(60 * 60 * 4 - 60 - new Random().nextInt(60), silentWebsocketReconnect)
 
     state.reconnectDelay = 1
   }
@@ -454,6 +454,9 @@ void updateWebsocketAttributeClosedDelay() {
 }
 
 void reconnectWebSocket() {
+  unschedule(silentWebsocketReconnect)
+  unschedule(silentWebsocketReconnectCloseSocket)
+
   // First delay is 2 seconds, doubles every time
   state.reconnectDelay = (state.reconnectDelay ?: 1) * 2
   // Don't let delay get too crazy, max it out at 30 minutes
