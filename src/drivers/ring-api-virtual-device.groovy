@@ -18,6 +18,7 @@
  * This device holds the websocket connection that controls the alarm hub and/or the lighting bridge
  */
 
+import com.hubitat.app.ChildDeviceWrapper
 import groovy.json.JsonOutput
 import groovy.transform.Field
 
@@ -329,7 +330,7 @@ void sendWebsocketRequest(Map msg) {
   logTrace("sendWebsocketRequest(${msg})")
 
   // Increment sequence number and add it to the request
-  state.seq = (state.seq ?: 0) + 1 //annoyingly the code editor doesn't like the ++ operator
+  state.seq = (state.seq ?: 0) + 1
   msg.seq = state.seq
 
   final String request = JsonOutput.toJson([channel: "message", msg: msg])
@@ -449,18 +450,18 @@ void updateWebsocketAttributeClosedDelay() {
 }
 
 void reconnectWebSocket() {
-  // first delay is 2 seconds, doubles every time
+  // First delay is 2 seconds, doubles every time
   state.reconnectDelay = (state.reconnectDelay ?: 1) * 2
-  // don't let delay get too crazy, max it out at 30 minutes
+  // Don't let delay get too crazy, max it out at 30 minutes
   if (state.reconnectDelay > 1800) {
     state.reconnectDelay = 1800
   }
 
-  //If the socket is unavailable, give it some time before trying to reconnect
+  // If the socket is unavailable, give it some time before trying to reconnect
   runIn(state.reconnectDelay, updateTokensAndReconnectWebSocket)
 }
 
-def uninstalled() {
+void uninstalled() {
   getChildDevices().each {
     deleteChildDevice(it.deviceNetworkId)
   }
@@ -553,7 +554,7 @@ def parse(String description) {
       }
       else if (datatype == "RemovedDeviceType") {
         for (final Map data in jsonMsg.body) {
-          def child = getChildByZID(data.zid)
+          ChildDeviceWrapper child = getChildByZID(data.zid)
           if (child != null) {
             log.warn("The ring device ${child} with zid ${data.zid} was removed. You may want to delete the device in hubitat as well")
           } else {
@@ -637,8 +638,8 @@ def parse(String description) {
     logInfo "Websocket timeout hit. Reconnecting..."
     interfaces.webSocket.close()
     sendEvent(name: "websocket", value: "disconnect")
-    //It appears we don't disconnect fast enough because we still get a failure from the status method when we close.  Because
-    //of that failure message and reconnect there we do not need to reconnect here.
+    // We don't disconnect fast enough because we still get a failure from the status method after closing. Because
+    // of that failure message and reconnect there we do not need to reconnect here.
   }
   else {
     log.warn "Received unsupported channel ${channel}. Please report this to the developers so support can be added."
@@ -657,12 +658,11 @@ def parse(String description) {
   if (gotDeviceInfoDocType) {
     final String assetId = jsonMsg.context.assetId
 
-    List<String> affectedDevices = []
-
     // Only parse events for hubs that were selected in the app
     if (isEnabledHub(assetId)) {
       final String assetKind = jsonMsg.context.assetKind
       final String hubZid = jsonMsg.src
+      List<String> affectedDevices = []
 
       final Long parseTimeStart = now()
       final Map<String, Map> deviceInfos = parseDeviceInfoDocType(jsonMsg, assetId, assetKind)
@@ -1112,7 +1112,7 @@ void sendUpdate(final String assetKind, final String hubZid, final Map deviceInf
 
   final String deviceType = deviceInfo.deviceType
 
-  def d = getChildByZID(deviceInfo.zid)
+  ChildDeviceWrapper d = getChildByZID(deviceInfo.zid)
   if (d) {
     d.setValues(deviceInfo)
 
@@ -1145,7 +1145,7 @@ void sendUpdate(final String assetKind, final String hubZid, final Map deviceInf
 void sendPassthru(final Map deviceInfo) {
   logDebug "sendPassthru for zid ${deviceInfo.zid}"
 
-  def d = getChildByZID(deviceInfo.zid)
+  ChildDeviceWrapper d = getChildByZID(deviceInfo.zid)
   if (d) {
     d.setPassthruValues(deviceInfo)
   } else {
@@ -1156,7 +1156,7 @@ void sendPassthru(final Map deviceInfo) {
 void sendSessionInfo(final Map deviceInfo) {
   logDebug "sendSessionInfo for zid ${deviceInfo.zid}"
 
-  def d = getChildByZID(deviceInfo.zid)
+  ChildDeviceWrapper d = getChildByZID(deviceInfo.zid)
   if (d) {
     d.setValues(deviceInfo)
   } else {
@@ -1172,7 +1172,7 @@ void logMissingDeviceMsg(final String source, final String zid, final String nam
 
 String getFormattedDNI(final String id) { return 'RING||' + id }
 
-def getChildByZID(final String zid) {
+ChildDeviceWrapper getChildByZID(final String zid) {
   return getChildDevice(getFormattedDNI(zid))
 }
 

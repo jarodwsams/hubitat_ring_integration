@@ -19,9 +19,9 @@
 //    APP_API_BASE_URL + '/mode/location/${location_id}/sharing'
 //    CLIENT_API_BASE_URL + '/profile'
 
+import com.hubitat.app.ChildDeviceWrapper
 import groovy.json.JsonOutput
 import groovy.transform.Field
-
 import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLPeerUnverifiedException
 import groovyx.net.http.ResponseParseException
@@ -34,10 +34,9 @@ definition(
   author: "Ben Rimmasch (codahq)",
   description: "Service Manager for Ring Alarm, Smart Lighting, Floodlights, Spotlights, Chimes, Cameras, and Doorbells",
   category: "Convenience",
-  iconUrl: "https://github.com/fake/url/what/is/this/for/ic_cast_grey_24dp.png",
-  iconX2Url: "https://github.com/fake/url/what/is/this/for/ic_cast_grey_24dp.png",
-  iconX3Url: "https://github.com/fake/url/what/is/this/for/ic_cast_grey_24dp.png",
-  singleInstance: true
+  singleInstance: true,
+  // Hubitat documentation says these aren't used and should just be set to an empty string
+  iconUrl: "", iconX2Url: "", iconX3Url: "",
 )
 
 preferences {
@@ -168,11 +167,11 @@ def mainPage() {
       href "snapshots", title: "Configure the way that Hubitat will get camera thumbnail images"
     }
 
-    def childDevs = getChildDevices()
+    List<ChildDeviceWrapper> childDevs = getChildDevices()
 
     if (childDevs) {
       section("Managed Installed Child Devices", hidden: true, hideable: true, hideWhenEmpty: true) {
-        for (child in childDevs.sort { a, b -> a.deviceNetworkId <=> b.deviceNetworkId }) {
+        for (ChildDeviceWrapper child in childDevs.sort { a, b -> a.deviceNetworkId <=> b.deviceNetworkId }) {
           String description = "Click here to manage this device"
 
           if (child.deviceNetworkId.startsWith(RING_API_DNI)) {
@@ -214,7 +213,7 @@ def notifications() {
 def ifttt() {
   setupDingables()
 
-  List dingables = state.dingables?.collect { getChildDeviceInternal(it) }?.findAll { it != null }
+  List<ChildDeviceWrapper> dingables = state.dingables?.collect { getChildDeviceInternal(it) }?.findAll { it != null }
 
   dynamicPage(name: "ifttt", title: '<b style="font-size: 25px;">Using IFTTT To Receive Motion and Ring Events</b>') {
     section('<b style="font-size: 22px;">About IFTTT</b>') {
@@ -330,7 +329,7 @@ def snapshots() {
       String msg = 'Click the links below and activate "Enable polling for thumbnail snapshots on this device" for each device you want to see. Refresh this page after enabling\n\n'
       for (final String dingable in state.dingables) {
         final String dingableDNI = getFormattedDNI(dingable)
-        def child = getChildDevice(dingableDNI)
+        ChildDeviceWrapper child = getChildDevice(dingableDNI)
         if (child) {
           msg += """<a href="/device/edit/${child.id}" target="_blank">${child.label}</a> (Opted <b>${state.snappables?.get(dingableDNI) ? 'in to' : 'out of'}</b> snapshot polling)\n"""
         }
@@ -413,7 +412,7 @@ void loadAvailableDevices(List apiRequestDevicesResponse) {
 
     if (!settings.selectedLocations.contains(node?.location_id)) {
       logDebug "loadAvailableDevices: Excluding ${kind} at location ${node.location_id} because it is not in selected locations ${settings.selectedLocations}"
-    } else if (!DEVICE_TYPES[kind]) {
+    } else if (!DEVICE_TYPES.containsKey(kind)) {
       logDebug "loadAvailableDevices: Excluding ${kind} at location ${node.location_id} because kind '${kind}' is not supported"
     } else {
       logDebug "loadAvailableDevices: Including a ${kind} at location ${node.location_id}"
@@ -429,23 +428,25 @@ Map getAvailableDevicesOptions() {
   logDebug "createAvailableDevicesOptions()"
 
   Map map = [:]
-  for (final device in state.devices) {
+  for (final Map device in state.devices) {
     final String value = device.name
     final String key = device.id
+
+    // @todo If no one reports this error, simplify this code
+    if (map.containsKey(key)) {
+      log.error("getAvailableDevicesOptions(): Device id '${key}' shows up more than once in apiRequestDevicesResponse. Please report this error so")
+    }
+
     map[key] = map[key] ? map[key] + " || " + value : value
   }
   return map
 }
 
-def installed() {
-  initialize()
-}
+void installed() { initialize() }
 
-def updated() {
-  initialize()
-}
+void updated() { initialize() }
 
-def initialize() {
+void initialize() {
   logDebug "initialize()"
   configureDingPolling()
   configureSnapshotPolling()
@@ -472,7 +473,7 @@ void processIFTTT() {
   }
   final String kind = json.kind
   logDebug "processIFTTT() with ${kind} for ${json.id}"
-  def d = getChildDeviceInternal(json.id)
+  ChildDeviceWrapper d = getChildDeviceInternal(json.id)
 
   logTrace "data received: kind: ${kind}, id: ${json.id}, device: ${d}, request: ${request}, data: ${request.body}"
 
@@ -497,10 +498,10 @@ def addDevices() {
     }
   }
 
-  List devices = state.devices
+  List<Map> devices = state.devices
   logTrace "devices ${devices}"
 
-  def apiDevice = getAPIDevice()
+  ChildDeviceWrapper apiDevice = getAPIDevice()
 
   if (!apiDevice) {
     return dynamicPage(name: "addDevices", title: "Error", nextPage: "mainPage", uninstall: true) {
@@ -513,58 +514,61 @@ def addDevices() {
 
   Set<Integer> enabledHubDoorbotIds = [].toSet()
 
-  selectedDevices.each { id ->
-    def selectedDevice = devices.find { it.id.toString() == id.toString() }
-    logTrace "Selected id ${id}, Selected device ${selectedDevice}"
+  for(final String id in selectedDevices) {
+    Map selectedDevice = devices.find { it.id == id }
+    logTrace "addDevices: Selected id ${id}, Selected device ${selectedDevice}"
 
     final Integer selectedDeviceId = selectedDevice.id
-
-    def d = null
-    if (selectedDevice) {
-      d = getChildDeviceInternal(selectedDeviceId)
-    }
 
     final String kind = selectedDevice.kind
     final Map deviceType = DEVICE_TYPES[kind]
 
     if (deviceType == null) {
-      log.error("Error adding device '${selectedDevice.name}'. Kind ${kind} is not supported")
-      sectionText += "Error adding device '${selectedDevice.name}'. Kind ${kind} is not supported"
+      final String tmpMsg = "addDevices: Error adding device '${selectedDevice.name}'. Kind '${kind}' is not supported"
+      log.error(tmpMsg)
+      sectionText += tmpMsg
       return
     }
 
     boolean isHubDevice = false
 
-    if (!d) {
+    ChildDeviceWrapper d = null
+    if (selectedDevice) {
+      d = getChildDeviceInternal(selectedDeviceId)
+    }
+
+    if (d == null) {
       logDebug selectedDevice
-      try {
-        if (["base_station_k1", "base_station_v1", "beams_bridge_v1"].contains(kind)) {
-          isHubDevice = true
-          enabledHubDoorbotIds.add(selectedDeviceId)
-          if (!apiDevice.isHubPresent(selectedDeviceId)) {
-            hubAdded = true
-            sectionText += "Requesting API device to create ${selectedDevice.name}\r\n"
-          }
+      if (["base_station_k1", "base_station_v1", "beams_bridge_v1"].contains(kind)) {
+        isHubDevice = true
+        enabledHubDoorbotIds.add(selectedDeviceId)
+        if (!apiDevice.isHubPresent(selectedDeviceId)) {
+          hubAdded = true
+          sectionText += "Requesting API device to create ${selectedDevice.name}\r\n"
         }
-        else {
+      }
+      else {
+        try {
           log.warn "Creating a ${deviceType.name} with dni: ${getFormattedDNI(selectedDeviceId)}"
           d = addChildDevice("ring-hubitat-codahq", deviceType.driver, getFormattedDNI(selectedDeviceId),
             [label: selectedDevice?.name ?: deviceType.name])
           d.refresh()
           sectionText += "Successfully added ${deviceType.name} with DNI ${getFormattedDNI(selectedDeviceId)}\r\n"
-        }
-      }
-      catch (e) {
-        if (e.toString().replace(deviceType.driver, "") ==
-          "com.hubitat.app.exception.UnknownDeviceTypeException: Device type '' in namespace 'ring-hubitat-codahq' not found") {
-          final String msg = "<b style=\"color: red;\">The '${deviceType.driver}' driver for device '${deviceType.name}' was not found and needs to be installed. NOTE: If you installed this using HPM, you can fix this by going to \"Update\" in HPM and selecting the optional drivers you need.</b>\r\n"
-          log.error msg
-          sectionText += msg
-        } else {
-          sectionText = sectionText + "An error occured ${e}\r\n"
+        } catch (e) {
+          if (e.toString().replace(deviceType.driver, "") ==
+            "com.hubitat.app.exception.UnknownDeviceTypeException: Device type '' in namespace 'ring-hubitat-codahq' not found") {
+            final String tmpMsg = "The '${deviceType.driver}' driver for device '${deviceType.name}' was not found and needs to be installed. NOTE: If you installed this using HPM, you can fix this by going to \"Update\" in HPM and selecting the optional drivers you need."
+            log.error tmpMsg
+            sectionText += '<b style="color: red;">' + tmpMsg + '</b>\r\n'
+          } else {
+            final String tmpMsg = "An error occured creating device: ${e}"
+            log.error tmpMsg
+            sectionText += tmpMsg + '\r\n'
+          }
         }
       }
     }
+  
     if (!isHubDevice) {
       d?.updateDataValue("kind", kind)
       d?.updateDataValue("kind_name", deviceType.name)
@@ -579,9 +583,9 @@ def addDevices() {
     apiDevice.updateTokensAndReconnectWebSocket()
   }
 
-  logDebug sectionText
   return dynamicPage(name: "addDevices", title: "Devices Added", nextPage: "mainPage", uninstall: true) {
     if (sectionText) {
+      logDebug sectionText
       section("Please Note!") {
         paragraph "Alarm base stations, Smart Lighting bridges and all devices connected to them are children of the API device.\r\n"
       }
@@ -603,7 +607,7 @@ def uninstalled() {
 }
 
 void setupDingables() {
-  state.dingables = getChildDevices()?.findAll { DEVICE_TYPES[it.getDataValue("kind")]?.dingable }?.collect { getRingDeviceId(it.deviceNetworkId) }
+  state.dingables = getChildDevices()?.findAll { RINGABLES.contains(it.getDataValue("kind")) }?.collect { getRingDeviceId(it.deviceNetworkId) }
 }
 
 void configureDingPolling() {
@@ -1022,7 +1026,7 @@ void apiRequestDeviceRefresh(final String dni) {
   apiRequestAsyncCommon("apiRequestDeviceRefresh", "Get", params, false) { resp ->
     def body = resp.getJson()
     logTrace "apiRequestDeviceRefresh for ${dni} succeeded, body: ${JsonOutput.toJson(body)}"
-    def d = getChildDevice(dni)
+    ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.handleRefresh(body)
     } else {
@@ -1048,7 +1052,7 @@ void apiRequestDeviceControl(final String dni, final String kind, final String a
     logTrace "apiRequestDeviceControl ${kind} ${action} for ${dni} succeeded"
 
     def body = resp.getData() ? resp.getJson() : null
-    def d = getChildDevice(dni)
+    ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.handleDeviceControl(action, body, query)
     } else {
@@ -1073,7 +1077,7 @@ void apiRequestDeviceSet(final String dni, final String kind, final String actio
     logTrace "apiRequestDeviceSet ${kind} ${action} for ${dni} succeeded"
 
     def body = resp.getData() ? resp.getJson() : null
-    def d = getChildDevice(dni)
+    ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.handleDeviceSet(action, body, query)
     } else {
@@ -1098,7 +1102,7 @@ void apiRequestDeviceHealth(final String dni, final String kind) {
 
     logTrace "apiRequestDeviceHealth ${kind} for ${dni} succeeded, body: ${JsonOutput.toJson(body)}"
 
-    def d = getChildDevice(dni)
+    ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.handleHealth(body)
     } else {
@@ -1127,7 +1131,7 @@ void apiRequestDings() {
       if (state.dingables.contains(deviceId)) {
         logTrace "apiRequestDings: Got ding for ${getFormattedDNI(deviceId)}"
 
-        def d = getChildDeviceInternal(deviceId)
+        ChildDeviceWrapper d = getChildDeviceInternal(deviceId)
 
         if (d) {
           if (dingInfo.kind == "motion") {
@@ -1182,7 +1186,7 @@ void apiRequestModeGet(final String dni) {
     def body = resp.getData() ? resp.getJson() : null
     logTrace "apiRequestModeGet succeeded, body: ${JsonOutput.toJson(body)}"
 
-    def d = getChildDevice(dni)
+    ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.updateMode(body.mode)
     } else {
@@ -1208,7 +1212,7 @@ void apiRequestModeSet(final String dni, final String mode) {
     def body = resp.getData() ? resp.getJson() : null
     logTrace "apiRequestModeSet for mode ${mode} succeeded, body: ${JsonOutput.toJson(body)}"
 
-    def d = getChildDevice(dni)
+    ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.updateMode(body.mode)
     } else {
@@ -1232,7 +1236,7 @@ void apiRequestTickets(final String dni) {
     def body = resp.getData() ? resp.getJson() : null
     logTrace "apiRequestTickets succeeded, body: ${JsonOutput.toJson(body)}"
 
-    def d = getChildDevice(dni)
+    ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.updateTickets(body)
     } else {
@@ -1589,14 +1593,14 @@ void periodicMaintenance() {
   }
 }
 
-def getChildDeviceInternal(id) {
+ChildDeviceWrapper getChildDeviceInternal(id) {
   if (id instanceof String && id.startsWith("RING")) {
     id = getRingDeviceId(id)
   }
 
   final String dni = getFormattedDNI(id)
 
-  def d = getChildDevice(dni)
+  ChildDeviceWrapper d = getChildDevice(dni)
   if (!d) {
     d = getChildDevice('RING-' + id)
     if (d) {
@@ -1607,7 +1611,7 @@ def getChildDeviceInternal(id) {
   return d
 }
 
-def getAPIDevice(Map location = null) {
+ChildDeviceWrapper getAPIDevice(Map location = null) {
   if (location == null) {
     location = getSelectedLocation()
   }
@@ -1618,7 +1622,7 @@ def getAPIDevice(Map location = null) {
   }
 
   final String formattedDNI = RING_API_DNI + "||" + location.id
-  def d = getChildDevice(formattedDNI)
+  ChildDeviceWrapper d = getChildDevice(formattedDNI)
   if (!d) {
     d = getChildDevice("RING-" + RING_API_DNI)
     // Migrate if it's the old DNI
@@ -1705,6 +1709,38 @@ String getRingDeviceId(String id) {
   "jbox_v1",
 ].toSet().asImmutable()
 
+@Field final static Set DINGABLES = [
+  "cocoa_camera",
+  "cocoa_doorbell",
+  "cocoa_floodlight",
+  "doorbell_graham_cracker",
+  "doorbell_portal",
+  "doorbell_oyster",
+  "doorbell_scallop_lite",
+  "doorbell_scallop",
+  "doorbell_v3",
+  "doorbell_v4",
+  "doorbell_v5",
+  "doorbell",
+  "floodlight_pro",
+  "floodlight_v2",
+  "hp_cam_v1",
+  "hp_cam_v2",
+  "jbox_v1",
+  "lpd_v1",
+  "lpd_v2",
+  "lpd_v3",
+  "lpd_v4",
+  "spotlightw_v2",
+  "stickup_cam_wired",
+  "stickup_cam_elite",
+  "stickup_cam_lunar",
+  "stickup_cam_mini",
+  "stickup_cam_v3",
+  "stickup_cam_v4",
+  "stickup_cam",
+].toSet().asImmutable()
+
 @Field final static Map DEVICE_TYPES = [
   "base_station_k1": [name: "Ring Alarm Base Station", driver: "SHOULD NOT SEE THIS"],
   "base_station_v1": [name: "Ring Alarm Base Station", driver: "SHOULD NOT SEE THIS"],
@@ -1713,33 +1749,33 @@ String getRingDeviceId(String id) {
   "chime_pro": [name: "Ring Chime Pro", driver: "Ring Virtual Chime"],
   "chime_v2": [name: "Ring Chime V2", driver: "Ring Virtual Chime"],
   "chime": [name: "Ring Chime", driver: "Ring Virtual Chime"],
-  "cocoa_camera": [name: "Ring Stick Up Cam", driver: "Ring Virtual Camera with Siren", dingable: true],
-  "cocoa_doorbell": [name: "Ring Video Doorbell 2020", driver: "Ring Virtual Camera", dingable: true],
-  "cocoa_floodlight": [name: "Ring Floodlight Cam Wired Plus", driver: "Ring Virtual Light with Siren", dingable: true],
-  "doorbell_graham_cracker": [name: "Ring Video Doorbell Wired", driver: "Ring Virtual Camera", dingable: true],
-  "doorbell_portal": [name: "Ring Peephole Cam", driver: "Ring Virtual Camera", dingable: true],
-  "doorbell_oyster": [name: "Ring Video Doorbell 4", driver: "Ring Virtual Camera", dingable: true],
-  "doorbell_scallop_lite": [name: "Ring Video Doorbell 3", driver: "Ring Virtual Camera", dingable: true],
-  "doorbell_scallop": [name: "Ring Video Doorbell 3 Plus", driver: "Ring Virtual Camera", dingable: true],
-  "doorbell_v3": [name: "Ring Video Doorbell", driver: "Ring Virtual Camera", dingable: true],
-  "doorbell_v4": [name: "Ring Video Doorbell 2", driver: "Ring Virtual Camera", dingable: true],
-  "doorbell_v5": [name: "Ring Video Doorbell 2", driver: "Ring Virtual Camera", dingable: true],
-  "doorbell": [name: "Ring Video Doorbell", driver: "Ring Virtual Camera", dingable: true],
-  "floodlight_pro": [name: "Ring Floodlight Cam Wired Pro", driver: "Ring Virtual Light with Siren", dingable: true],
-  "floodlight_v2": [name: "Ring Floodlight Cam Wired", driver: "Ring Virtual Light with Siren", dingable: true],
-  "hp_cam_v1": [name: "Ring Floodlight Cam", driver: "Ring Virtual Light with Siren", dingable: true],
-  "hp_cam_v2": [name: "Ring Spotlight Cam Wired", driver: "Ring Virtual Light with Siren", dingable: true],
-  "jbox_v1": [name: "Ring Video Doorbell Elite", driver: "Ring Virtual Camera", dingable: true],
-  "lpd_v1": [name: "Ring Video Doorbell Pro", driver: "Ring Virtual Camera", dingable: true],
-  "lpd_v2": [name: "Ring Video Doorbell Pro", driver: "Ring Virtual Camera", dingable: true],
-  "lpd_v3": [name: "Ring Video Doorbell Pro", driver: "Ring Virtual Camera", dingable: true],
-  "lpd_v4": [name: "Ring Video Doorbell Pro 2", driver: "Ring Virtual Camera", dingable: true],
-  "spotlightw_v2": [name: "Ring Spotlight Cam Wired", driver: "Ring Virtual Light with Siren", dingable: true],
-  "stickup_cam_wired": [name: "Ring Stick Up Cam Elite (2nd gen)", driver: "Ring Virtual Camera with Siren", dingable: true],
-  "stickup_cam_elite": [name: "Ring Stick Up Cam Elite (2nd gen)", driver: "Ring Virtual Camera with Siren", dingable: true],
-  "stickup_cam_lunar": [name: "Ring Stick Up Cam Battery/Solar (2nd gen)", driver: "Ring Virtual Camera with Siren", dingable: true],
-  "stickup_cam_mini": [name: "Ring Indoor Cam", driver: "Ring Virtual Camera with Siren", dingable: true],
-  "stickup_cam_v3": [name: "Ring Stick Up Cam (1st gen)", driver: "Ring Virtual Camera", dingable: true],
-  "stickup_cam_v4": [name: "Ring Spotlight Cam Battery/Solar", driver: "Ring Virtual Light", dingable: true],
-  "stickup_cam": [name: "Ring Stick Up Cam (1st gen)", driver: "Ring Virtual Camera", dingable: true],
+  "cocoa_camera": [name: "Ring Stick Up Cam", driver: "Ring Virtual Camera with Siren"],
+  "cocoa_doorbell": [name: "Ring Video Doorbell 2020", driver: "Ring Virtual Camera"],
+  "cocoa_floodlight": [name: "Ring Floodlight Cam Wired Plus", driver: "Ring Virtual Light with Siren"],
+  "doorbell_graham_cracker": [name: "Ring Video Doorbell Wired", driver: "Ring Virtual Camera"],
+  "doorbell_portal": [name: "Ring Peephole Cam", driver: "Ring Virtual Camera"],
+  "doorbell_oyster": [name: "Ring Video Doorbell 4", driver: "Ring Virtual Camera"],
+  "doorbell_scallop_lite": [name: "Ring Video Doorbell 3", driver: "Ring Virtual Camera"],
+  "doorbell_scallop": [name: "Ring Video Doorbell 3 Plus", driver: "Ring Virtual Camera"],
+  "doorbell_v3": [name: "Ring Video Doorbell", driver: "Ring Virtual Camera"],
+  "doorbell_v4": [name: "Ring Video Doorbell 2", driver: "Ring Virtual Camera"],
+  "doorbell_v5": [name: "Ring Video Doorbell 2", driver: "Ring Virtual Camera"],
+  "doorbell": [name: "Ring Video Doorbell", driver: "Ring Virtual Camera"],
+  "floodlight_pro": [name: "Ring Floodlight Cam Wired Pro", driver: "Ring Virtual Light with Siren"],
+  "floodlight_v2": [name: "Ring Floodlight Cam Wired", driver: "Ring Virtual Light with Siren"],
+  "hp_cam_v1": [name: "Ring Floodlight Cam", driver: "Ring Virtual Light with Siren"],
+  "hp_cam_v2": [name: "Ring Spotlight Cam Wired", driver: "Ring Virtual Light with Siren"],
+  "jbox_v1": [name: "Ring Video Doorbell Elite", driver: "Ring Virtual Camera"],
+  "lpd_v1": [name: "Ring Video Doorbell Pro", driver: "Ring Virtual Camera"],
+  "lpd_v2": [name: "Ring Video Doorbell Pro", driver: "Ring Virtual Camera"],
+  "lpd_v3": [name: "Ring Video Doorbell Pro", driver: "Ring Virtual Camera"],
+  "lpd_v4": [name: "Ring Video Doorbell Pro 2", driver: "Ring Virtual Camera"],
+  "spotlightw_v2": [name: "Ring Spotlight Cam Wired", driver: "Ring Virtual Light with Siren"],
+  "stickup_cam_wired": [name: "Ring Stick Up Cam Elite (2nd gen)", driver: "Ring Virtual Camera with Siren"],
+  "stickup_cam_elite": [name: "Ring Stick Up Cam Elite (2nd gen)", driver: "Ring Virtual Camera with Siren"],
+  "stickup_cam_lunar": [name: "Ring Stick Up Cam Battery/Solar (2nd gen)", driver: "Ring Virtual Camera with Siren"],
+  "stickup_cam_mini": [name: "Ring Indoor Cam", driver: "Ring Virtual Camera with Siren"],
+  "stickup_cam_v3": [name: "Ring Stick Up Cam (1st gen)", driver: "Ring Virtual Camera"],
+  "stickup_cam_v4": [name: "Ring Spotlight Cam Battery/Solar", driver: "Ring Virtual Light"],
+  "stickup_cam": [name: "Ring Stick Up Cam (1st gen)", driver: "Ring Virtual Camera"],
 ].asImmutable()
