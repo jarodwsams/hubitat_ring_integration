@@ -45,15 +45,15 @@ metadata {
   }
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
@@ -118,18 +118,18 @@ void updateVolumeInternal(Integer volume) {
   }
 }
 
-def setBrightness(brightness) {
+void setBrightness(brightness) {
   // Value must be in [0, 100]
   brightness = Math.min(Math.max(brightness == null ? 100 : brightness.toInteger(), 0), 100)
 
   parent.apiWebsocketRequestSetDevice(null, device.getDataValue("zid"), [brightness: brightness.toDouble() / 100])
 }
 
-def setChirps(chirps) {
+void setChirps(chirps) {
   parent.apiWebsocketRequestSetDevice(null, device.getDataValue("zid"), [chirps: chirps])
 }
 
-def setPowerSave(powerSave) {
+void setPowerSave(powerSave) {
   String ringValue
 
   for (it in POWER_SAVE) {

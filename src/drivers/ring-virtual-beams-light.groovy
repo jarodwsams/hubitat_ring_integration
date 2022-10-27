@@ -43,31 +43,31 @@ metadata {
   }
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
-def refresh() {
+void refresh() {
   parent.refresh(device.getDataValue("src"))
 }
 
-def on(duration = 60) {
+void on(duration = 60) {
   parent.apiWebsocketRequestSetCommand("light-mode.set", device.getDataValue("src"), device.getDataValue("zid"), [lightMode: "on", duration: duration])
 }
 
-def off() {
+void off() {
   parent.apiWebsocketRequestSetCommand("light-mode.set", device.getDataValue("src"), device.getDataValue("zid"), [lightMode: "default"])
 }
 
-def setBrightness(brightness) {
+void setBrightness(brightness) {
   if (NO_BRIGHTNESS_DEVICES.contains(device.getDataValue("fingerprint"))) {
     log.error "This device doesn't support brightness!"
     return
@@ -110,7 +110,7 @@ void setValues(final Map deviceInfo) {
   // Update state values
   Map stateValues = deviceInfo.subMap(['impulseType', 'lastUpdate'])
   if (stateValues) {
-      state << stateValues
+    state << stateValues
   }
 }
 

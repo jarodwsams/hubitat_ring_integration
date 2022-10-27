@@ -61,15 +61,15 @@ metadata {
   }
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
@@ -79,7 +79,7 @@ void refresh() {
   parent.refresh(device.getDataValue("src"))
 }
 
-def setMode(mode) {
+void setMode(mode) {
   logDebug "setMode(${mode})"
   Map data
   if (mode == "Disarmed" && device.currentValue("mode") != "off") {
@@ -99,25 +99,25 @@ def setMode(mode) {
   parent.apiWebsocketRequestSetCommand("security-panel.switch-mode", device.getDataValue("src"), device.getDataValue("security-panel-zid"), data)
 }
 
-def off() {
+void off() {
   logTrace "previous value alarm: ${device.currentValue("alarm")}"
   parent.apiWebsocketRequestSetCommand("security-panel.silence-siren", device.getDataValue("src"), device.getDataValue("security-panel-zid"))
 }
 
-def siren() {
+void siren() {
   parent.apiWebsocketRequestSetCommand("security-panel.sound-siren", device.getDataValue("src"), device.getDataValue("security-panel-zid"))
 }
 
-def strobe() {
+void strobe() {
   log.error "The device ${device.getDisplayName()} does not support the strobe functionality"
 }
 
-def both() {
+void both() {
   strobe()
   siren()
 }
 
-def sirenTest() {
+void sirenTest() {
   if (device.currentValue("mode") != "off") {
     log.warn "Please disarm the alarm before testing the siren."
     return
@@ -125,7 +125,7 @@ def sirenTest() {
   parent.apiWebsocketRequestSetCommand("siren-test.start", null, device.getDataValue("security-panel-zid"))
 }
 
-def sirenTestCancel() {
+void sirenTestCancel() {
   parent.apiWebsocketRequestSetCommand("siren-test.stop", device.getDataValue("src"), device.getDataValue("security-panel-zid"))
 }
 
@@ -177,7 +177,7 @@ void unmute() {
   setVolume(state.prevVolume)
 }
 
-def setBrightness(brightness) {
+void setBrightness(brightness) {
   // Value must be in [0, 100]
   brightness = Math.min(Math.max(brightness == null ? 100 : brightness.toInteger(), 0), 100)
 
@@ -343,7 +343,7 @@ void setValues(final Map deviceInfo) {
   // Update state values
   Map stateValues = deviceInfo.subMap(['lastNetworkLatencyEvent', 'lastUpdate', 'impulseType'])
   if (stateValues) {
-      state << stateValues
+    state << stateValues
   }
 }
 

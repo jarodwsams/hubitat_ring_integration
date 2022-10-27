@@ -59,19 +59,19 @@ metadata {
   }
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
-def setMode(mode) {
+void setMode(mode) {
   logDebug "setMode(${mode})"
   if (state.alarmCapable) {
     log.error "setMode supported from API device. Ring account has alarm present so use alarm modes!"
@@ -91,15 +91,15 @@ void setDebugImpulseErrorSetInfoExcludeList(excludeList) {
   state.debugImpulseErrorSetInfoExcludeList = excludeList?.replaceAll("\\s", "")?.split(",") as Set
 }
 
-def installed() {
+void installed() {
   initialize()
 }
 
-def updated() {
+void updated() {
   initialize()
 }
 
-def initialize() {
+void initialize() {
   logDebug "initialize()"
 
   unschedule(silentWebsocketReconnect)
@@ -190,15 +190,15 @@ void updateTickets(final Map ticket) {
   if (state.createableHubs != null) {
     log.warn("Migrating old createableHubs list to new")
 
-    state.enabledHubDoorbotIds = (ticket.assets.findAll { state.createableHubs.contains(it.kind) }*.doorbotId).toSet()
+    state.enabledHubDoorbotIds = (ticket.assets.findAll { Map asset -> state.createableHubs.contains(asset.kind) }*.doorbotId).toSet()
 
     state.remove('createableHubs')
   }
 
-  final List enabledHubs = ticket.assets.findAll { state.enabledHubDoorbotIds.contains(it.doorbotId) }
+  final List enabledHubs = ticket.assets.findAll { Map asset -> state.enabledHubDoorbotIds.contains(asset.doorbotId) }
 
-  state.hubs = enabledHubs.collectEntries { [(it.uuid): it.doorbotId] }
-  state.alarmCapable = enabledHubs.find { ALARM_CAPABLE_KINDS.contains(it.kind) } != null
+  state.hubs = enabledHubs.collectEntries { Map asset -> [(asset.uuid): asset.doorbotId] }
+  state.alarmCapable = enabledHubs.find { Map asset -> ALARM_CAPABLE_KINDS.contains(asset.kind) } != null
 
   final String wsUrl = "wss://${ticket.host}/ws?authcode=${ticket.ticket}&ack=false"
   logTrace "wsUrl: $wsUrl"
@@ -462,12 +462,10 @@ void reconnectWebSocket() {
 }
 
 void uninstalled() {
-  getChildDevices().each {
-    deleteChildDevice(it.deviceNetworkId)
-  }
+  childDevices.each { ChildDeviceWrapper dev -> deleteChildDevice(dev.deviceNetworkId) }
 }
 
-def parse(String description) {
+void parse(String description) {
   final Long parseStart = now()
 
   //logTrace "parse description: ${description}"
@@ -910,7 +908,7 @@ Map<String, Map> parseDeviceInfoDocType(final Map json, final String assetId, fi
         curDeviceInfo.batteryStatus = tmpGeneral.batteryStatus
       }
 
-      final tamperStatus = tmpGeneral.tamperStatus
+      final String tamperStatus = tmpGeneral.tamperStatus
       if (tamperStatus != null) {
         curDeviceInfo.tamper = tamperStatus == "tamper" ? "detected" : "clear"
       }
@@ -1027,7 +1025,7 @@ Map<String, Map> parseDeviceInfoDocType(final Map json, final String assetId, fi
         }
       }
 
-      final version = deviceV1.version
+      final Object version = deviceV1.version
       if (version != null) {
         if (version instanceof Map) {
           if (deviceType == 'adapter.ringnet') {
@@ -1045,12 +1043,12 @@ Map<String, Map> parseDeviceInfoDocType(final Map json, final String assetId, fi
         }
       }
 
-      final motionStatus = deviceV1.motionStatus
+      final String motionStatus = deviceV1.motionStatus
       if (motionStatus != null) {
         curDeviceInfo.motion = motionStatus == "clear" ? "inactive" : "active"
       }
 
-      final on = deviceV1.on
+      final Boolean on = deviceV1.on
       if (on != null) {
         curDeviceInfo.switch = on ? "on" : "off"
       }
@@ -1081,8 +1079,8 @@ void createChild(final String hubZid, final Map deviceInfo) {
     final String formattedDNI = getFormattedDNI(deviceInfo.zid)
 
     try {
-      def d = addChildDevice("ring-hubitat-codahq", mappedDeviceTypeName, formattedDNI,
-                             [label: deviceInfo.name ?: mappedDeviceTypeName])
+      ChildDeviceWrapper d = addChildDevice("ring-hubitat-codahq", mappedDeviceTypeName, formattedDNI,
+                                            [label: deviceInfo.name ?: mappedDeviceTypeName])
       setInitialDeviceDataValues(d, deviceInfo.deviceType, hubZid, deviceInfo)
 
       log.info "Created a ${mappedDeviceTypeName} (${deviceType}) with dni: ${formattedDNI}"
@@ -1097,7 +1095,7 @@ void createChild(final String hubZid, final Map deviceInfo) {
   }
 }
 
-void setInitialDeviceDataValues(d, final String type, final String hubZid, final Map deviceInfo) {
+void setInitialDeviceDataValues(ChildDeviceWrapper d, final String type, final String hubZid, final Map deviceInfo) {
   d.updateDataValue("zid",  deviceInfo.zid)
   d.updateDataValue("fingerprint", deviceInfo.fingerprint ?: "N/A")
   d.updateDataValue("hardwareVersion", deviceInfo.hardwareVersion?.toString() ?: "N/A")

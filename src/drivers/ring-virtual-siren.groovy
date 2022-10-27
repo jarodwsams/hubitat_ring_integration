@@ -38,15 +38,15 @@ metadata {
   }
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
@@ -54,13 +54,13 @@ void refresh() {
   parent.refresh(device.getDataValue("src"))
 }
 
-def sirenTest() {
+void sirenTest() {
   // @todo Make this impossible when alarm is armed. If you attempt this through Ring's UIs it is prevented
   //pearl is too deep a dive to add code so this device can ask the hub device what the mode is right now.
   parent.apiWebsocketRequestSetCommand("siren-test.start", device.getDataValue("src"), device.getDataValue("zid"))
 }
 
-def sirenTestCancel() {
+void sirenTestCancel() {
   parent.apiWebsocketRequestSetCommand("siren-test.stop", device.getDataValue("src"), device.getDataValue("zid"))
 }
 
@@ -79,7 +79,7 @@ void setValues(final Map deviceInfo) {
   // Update state values
   Map stateValues = deviceInfo.subMap(['impulseType', 'lastCommTime', 'lastUpdate', 'nextExpectedWakeup', 'signalStrength'])
   if (stateValues) {
-      state << stateValues
+    state << stateValues
   }
 }
 

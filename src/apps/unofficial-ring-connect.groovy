@@ -103,8 +103,8 @@ def authCheck() {
 
 def locations() {
   state.locationOptions = [:]
-  apiRequestLocations()?.each {
-    state.locationOptions[it.location_id.toString()] = it.name.toString()
+  apiRequestLocations()?.each { Map loc ->
+    state.locationOptions[loc.location_id.toString()] = loc.name.toString()
   }
 
   if (!state.locationOptions) {
@@ -213,7 +213,8 @@ def notifications() {
 def ifttt() {
   setupDingables()
 
-  List<ChildDeviceWrapper> dingables = state.dingables?.collect { getChildDeviceInternal(it) }?.findAll { it != null }
+  List<ChildDeviceWrapper> dingables = state.dingables?.collect { String devId -> getChildDeviceInternal(devId) }
+                                                      ?.findAll { ChildDeviceWrapper dev -> dev != null }
 
   dynamicPage(name: "ifttt", title: '<b style="font-size: 25px;">Using IFTTT To Receive Motion and Ring Events</b>') {
     section('<b style="font-size: 22px;">About IFTTT</b>') {
@@ -250,19 +251,19 @@ def ifttt() {
     }
     section('<b style="font-size: 22px;">Body Payloads for Motion Events</b>') {
       if (dingables) {
-         paragraph(dingables.collect {
-            "<u>" + it.label + "</u>: " + JsonOutput.toJson([kind: 'motion', motion: true, id: it.deviceNetworkId])
-          }.join('\n\n'))
+        paragraph(dingables.collect { ChildDeviceWrapper dingable ->
+          "<u>" + dingable.label + "</u>: " + JsonOutput.toJson([kind: 'motion', motion: true, id: dingable.deviceNetworkId])
+        }.join('\n\n'))
       } else {
         paragraph("No installed devices support motion events")
       }
     }
     section('<b style="font-size: 22px;">Body Payloads for Ring Events</b>') {
-      List ringables = dingables?.findAll { RINGABLES.contains(it.getDataValue("kind")) }
+      List ringables = dingables?.findAll { ChildDeviceWrapper -> RINGABLES.contains(it.getDataValue("kind")) }
       if (ringables) {
-        paragraph(ringables.collect {
-            "<u>" + it.label + "</u>: " + JsonOutput.toJson([kind: 'ding', motion: false, id: it.deviceNetworkId])
-          }.join('\n\n'))
+        paragraph(ringables.collect { ChildDeviceWrapper ringable ->
+          "<u>" + ringable.label + "</u>: " + JsonOutput.toJson([kind: 'ding', motion: false, id: ringable.deviceNetworkId])
+        }.join('\n\n'))
       } else {
         paragraph("No installed devices support ring events")
       }
@@ -354,9 +355,10 @@ def snapshots() {
       }
       paragraph("<b>WARNING: Do *not* share these URLs publicly</b>")
 
-      for (final String snappable in getEnabledSnappables()) {
+      for (final String snappableDNI in enabledSnappables) {
+        ChildDeviceWrapper child = getChildDevice(snappableDNI)
         final URI url = new URI("${getFullLocalApiServerUrl()}/snapshot/${URLEncoder.encode(snappable, "UTF-8")}?access_token=${state.accessToken}")
-        paragraph("""<u><b>${getChildDeviceInternal(snappable).label}:</b></u>\n<b>URL</b>: $url\n<img height="180" width="320" src="${url.path}?${url.query}" alt="Snapshot" />""")
+        paragraph("""<u><b>${child).label}:</b></u>\n<b>URL</b>: $url\n<img height="180" width="320" src="${url.path}?${url.query}" alt="Snapshot" />""")
       }
     }
     donationPageSection()
@@ -515,7 +517,7 @@ def addDevices() {
   Set<Integer> enabledHubDoorbotIds = [].toSet()
 
   for(final String id in selectedDevices) {
-    Map selectedDevice = devices.find { it.id == id }
+    Map selectedDevice = devices.find { Map dev -> dev.id.toString() == id }
     logTrace "addDevices: Selected id ${id}, Selected device ${selectedDevice}"
 
     final Integer selectedDeviceId = selectedDevice.id
@@ -568,7 +570,7 @@ def addDevices() {
         }
       }
     }
-  
+
     if (!isHubDevice) {
       d?.updateDataValue("kind", kind)
       d?.updateDataValue("kind_name", deviceType.name)
@@ -600,14 +602,13 @@ def addDevices() {
   }
 }
 
-def uninstalled() {
-  getChildDevices()?.each {
-    deleteChildDevice(it.deviceNetworkId)
-  }
+void uninstalled() {
+  childDevices.each {  ChildDeviceWrapper dev -> deleteChildDevice(dev.deviceNetworkId) }
 }
 
 void setupDingables() {
-  state.dingables = getChildDevices()?.findAll { RINGABLES.contains(it.getDataValue("kind")) }?.collect { getRingDeviceId(it.deviceNetworkId) }
+  state.dingables = getChildDevices()?.findAll { ChildDeviceWrapper dev -> DINGABLES.contains(dev.getDataValue("kind")) }
+                                     ?.collect { ChildDeviceWrapper dev -> getRingDeviceId(dev.deviceNetworkId) }
 }
 
 void configureDingPolling() {
@@ -677,7 +678,7 @@ void configureSnapshotPolling() {
 void updateSnapshots() {
   // This gets the snapshot timestamps only for selected timestamps, then retrieves those snapshots after a delay.
   // This is better than using snapshot-update, so battery powered devices can sleep if the user wants them to
-  apiRequestSnapshotTimestamps(getEnabledSnappables()?.collect { final String it -> getRingDeviceId(it).toInteger() })
+  apiRequestSnapshotTimestamps(getEnabledSnappables()?.collect { final String dni -> getRingDeviceId(dni).toInteger() })
 }
 
 // Kept for compatibility with old installs
@@ -849,7 +850,7 @@ boolean apiRequestAuthCommon(final String funcName, final Map params) {
   try {
     boolean success = false
     httpPost(params) { resp ->
-      def body = resp.data
+      Map body = resp.data
       logInfo "$funcName succeeded"
       logTrace "$funcName succeeded, body: ${body}"
 
@@ -874,7 +875,7 @@ boolean apiRequestAuthCommon(final String funcName, final Map params) {
     final Integer status = ex.getStatusCode()
 
     final resp = ex.getResponse()
-    final body = resp.getData()
+    final Object body = resp.getData()
 
     if (status == 400) {
       if (body instanceof Map) {
@@ -976,7 +977,7 @@ boolean apiRequestAuthSession() {
   return apiRequestSyncCommon("apiRequestAuthSession", false, params) { Map reqParams ->
     boolean retval = false
     httpPost(reqParams) { resp ->
-      def body = resp.data
+      Map body = resp.data
       logTrace "apiRequestAuthSession succeeded, body: ${JsonOutput.toJson(body)}"
       state.session_token = body.profile.authentication_token
       logDebug "apiRequestAuthSession succeeded, token is ${state.session_token}"
@@ -995,7 +996,7 @@ List apiRequestDevices() {
   return apiRequestSyncCommon("apiRequestDevices", false, params) { Map reqParams ->
     List retval = null
     httpGet(reqParams) { resp ->
-      def body = resp.data
+      Map body = resp.data
 
       logTrace "apiRequestDevices succeeded, body: ${JsonOutput.toJson(body)}"
 
@@ -1024,7 +1025,7 @@ void apiRequestDeviceRefresh(final String dni) {
   Map params = makeClientsApiParams('/ring_devices/' + getRingDeviceId(dni), [query: [api_version: 11]])
 
   apiRequestAsyncCommon("apiRequestDeviceRefresh", "Get", params, false) { resp ->
-    def body = resp.getJson()
+    Map body = resp.getJson()
     logTrace "apiRequestDeviceRefresh for ${dni} succeeded, body: ${JsonOutput.toJson(body)}"
     ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
@@ -1051,7 +1052,7 @@ void apiRequestDeviceControl(final String dni, final String kind, final String a
   apiRequestAsyncCommon("apiRequestDeviceControl", "Post", params, false) { resp ->
     logTrace "apiRequestDeviceControl ${kind} ${action} for ${dni} succeeded"
 
-    def body = resp.getData() ? resp.getJson() : null
+    Map body = resp.getData() ? resp.getJson() : null
     ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.handleDeviceControl(action, body, query)
@@ -1076,7 +1077,7 @@ void apiRequestDeviceSet(final String dni, final String kind, final String actio
   apiRequestAsyncCommon("apiRequestDeviceSet", "Put", params, false) { resp ->
     logTrace "apiRequestDeviceSet ${kind} ${action} for ${dni} succeeded"
 
-    def body = resp.getData() ? resp.getJson() : null
+    Map body = resp.getData() ? resp.getJson() : null
     ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
       d.handleDeviceSet(action, body, query)
@@ -1098,7 +1099,7 @@ void apiRequestDeviceHealth(final String dni, final String kind) {
                                     [contentType: TEXT, requestContentType: JSON])
 
   apiRequestAsyncCommon("apiRequestDeviceHealth", "Get", params, false) { resp ->
-    def body = resp.getData() ? resp.getJson() : null
+    Map body = resp.getData() ? resp.getJson() : null
 
     logTrace "apiRequestDeviceHealth ${kind} for ${dni} succeeded, body: ${JsonOutput.toJson(body)}"
 
@@ -1122,7 +1123,7 @@ void apiRequestDings() {
   Map params = makeClientsApiParams('/dings/active', [query: [api_version: 11]])
 
   apiRequestAsyncCommon("apiRequestDings", "Get", params, false) { resp ->
-    def body = resp.getJson()
+    List<Map> body = resp.getJson()
     logTrace "apiRequestDings succeeded, body: ${JsonOutput.toJson(body)}"
 
     for (final Map dingInfo in body) {
@@ -1163,7 +1164,7 @@ List apiRequestLocations() {
   return apiRequestSyncCommon("apiRequestLocations", false, params) { Map reqParams ->
     List retval = null
     httpGet(reqParams) { resp ->
-      def body = resp.getData()
+      Map body = resp.getData()
       logTrace "apiRequestLocations succeeded, body: ${JsonOutput.toJson(body)}"
       retval = body.user_locations
     }
@@ -1183,7 +1184,7 @@ void apiRequestModeGet(final String dni) {
     [query: [api_version: 11]], [hardware_id: true])
 
   apiRequestAsyncCommon("apiRequestModeGet", "Get", params, false) { resp ->
-    def body = resp.getData() ? resp.getJson() : null
+    Map body = resp.getData() ? resp.getJson() : null
     logTrace "apiRequestModeGet succeeded, body: ${JsonOutput.toJson(body)}"
 
     ChildDeviceWrapper d = getChildDevice(dni)
@@ -1209,7 +1210,7 @@ void apiRequestModeSet(final String dni, final String mode) {
     [hardware_id: true])
 
   apiRequestAsyncCommon("apiRequestModeSet", "Post", params, false) { resp ->
-    def body = resp.getData() ? resp.getJson() : null
+    Map body = resp.getData() ? resp.getJson() : null
     logTrace "apiRequestModeSet for mode ${mode} succeeded, body: ${JsonOutput.toJson(body)}"
 
     ChildDeviceWrapper d = getChildDevice(dni)
@@ -1233,7 +1234,7 @@ void apiRequestTickets(final String dni) {
   addHeadersToHttpRequest(params)
 
   apiRequestAsyncCommon("apiRequestTickets", "Get", params, false) { resp ->
-    def body = resp.getData() ? resp.getJson() : null
+    Map body = resp.getData() ? resp.getJson() : null
     logTrace "apiRequestTickets succeeded, body: ${JsonOutput.toJson(body)}"
 
     ChildDeviceWrapper d = getChildDevice(dni)
@@ -1281,7 +1282,7 @@ void apiRequestSnapshotImages(final Map data) {
  * Makes a ring api request for snapshot timestamps
  * @param doorbotIds List of snappable doorbot ids to get timestamps for
  */
-void apiRequestSnapshotTimestamps(List doorbotIds) {
+void apiRequestSnapshotTimestamps(List<Integer> doorbotIds) {
   logTrace("apiRequestSnapshotTimestamps(${doorbotIds})")
 
   Map params = makeClientsApiParams('/snapshots/timestamps',
@@ -1291,7 +1292,7 @@ void apiRequestSnapshotTimestamps(List doorbotIds) {
   // Would like to do this async, but for some reason the state won't get updated when async
   apiRequestSyncCommon("apiRequestSnapshotTimestamps", false, params) { Map reqParams ->
     httpPost(reqParams) { resp ->
-      def body = resp.getData()
+      Map body = resp.getData()
       logTrace "apiRequestSnapshotTimestamps for ${doorbotIds} succeeded, body: ${JsonOutput.toJson(body)}"
 
       // @todo Consider comparing new timestamps to old timestamps. Could use this to avoid getting a snapshot when there is no update
@@ -1632,7 +1633,7 @@ ChildDeviceWrapper getAPIDevice(Map location = null) {
     }
     // Create otherwise
     else {
-      d = addChildDevice("ring-hubitat-codahq", "Ring API Virtual Device", formattedDNI, null,
+      d = addChildDevice("ring-hubitat-codahq", "Ring API Virtual Device", formattedDNI,
                          [label: location.name + " Location"])
       logInfo "Ring API Virtual Device with ID ${formattedDNI} created"
     }
@@ -1651,25 +1652,25 @@ boolean loggedIn() {
 
 // @todo Refactor this. The naming here is a mess
 Map getSelectedLocation() {
-  def loc = state.locationOptions.find { location ->
-    selectedLocations.contains(location.key) || selectedLocations == location.key
+  def loc = state.locationOptions.find { locOpt ->
+    selectedLocations.contains(locOpt.key) || selectedLocations == locOpt.key
   }
   return loc ? [id: loc.key, name: loc.value] : null
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
-String getFormattedDNI(final id) {
+String getFormattedDNI(final Object id) {
   return 'RING||' + id
 }
 

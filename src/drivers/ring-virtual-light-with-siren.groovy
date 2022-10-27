@@ -44,45 +44,43 @@ metadata {
   }
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
-def parse(String description) {
+void parse(String description) {
   logDebug "description: ${description}"
 }
 
-def poll() {
-  refresh()
-}
+void poll() { refresh() }
 
-def refresh() {
+void refresh() {
   logDebug "refresh()"
   parent.apiRequestDeviceRefresh(device.deviceNetworkId)
   parent.apiRequestDeviceHealth(device.deviceNetworkId, "doorbots")
 }
 
-def getDings() {
+void getDings() {
   logDebug "getDings()"
   parent.apiRequestDings()
 }
 
-def setupPolling() {
+void setupPolling() {
   unschedule()
   if (lightPolling) {
     pollLight()
   }
 }
 
-def pollLight() {
+void pollLight() {
   logTrace "pollLight()"
   refresh()
   if (pollLight) {
@@ -90,22 +88,22 @@ def pollLight() {
   }
 }
 
-def updated() {
+void updated() {
   setupPolling()
   parent.snapshotOption(device.deviceNetworkId, snapshotPolling)
 }
 
-def on() {
+void on() {
   state.strobing = false
   parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "floodlight_light_on")
 }
 
-def off() {
+void off() {
   alarmOff(false)
   switchOff()
 }
 
-def switchOff() {
+void switchOff() {
   if (state.strobing) {
     unschedule()
   }
@@ -113,7 +111,7 @@ def switchOff() {
   parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "floodlight_light_off")
 }
 
-def alarmOff(boolean modifyLight = true) {
+void alarmOff(boolean modifyLight = true) {
   final String alarm = device.currentValue("alarm")
   logTrace "alarm: $alarm"
   sendEvent(name: "alarm", value: "off")
@@ -125,11 +123,11 @@ def alarmOff(boolean modifyLight = true) {
   }
 }
 
-def siren() {
+void siren() {
   parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "siren_on")
 }
 
-def strobe(value = "strobe") {
+void strobe(value = "strobe") {
   logInfo "$device was set to strobe with a rate of $strobeRate milliseconds for $strobeTimeout seconds"
   state.strobing = true
   strobeOn()
@@ -137,19 +135,19 @@ def strobe(value = "strobe") {
   runIn(strobeTimeout.toInteger(), alarmOff)
 }
 
-def both() {
+void both() {
   strobe("both")
   siren()
 }
 
-def strobeOn() {
+void strobeOn() {
   if (state.strobing) {
     runInMillis(strobeRate.toInteger(), strobeOff)
     parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "floodlight_light_on")
   }
 }
 
-def strobeOff() {
+void strobeOff() {
   if (state.strobing) {
     runInMillis(strobeRate.toInteger(), strobeOn)
     parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "floodlight_light_off")

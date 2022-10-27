@@ -42,28 +42,25 @@ metadata {
   }
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
-def parse(String description) {
+void parse(String description) {
   logDebug "description: ${description}"
 }
 
-def poll() {
-  logDebug "poll()"
-  refresh()
-}
+void poll() { refresh() }
 
-def refresh() {
+void refresh() {
   logDebug "refresh()"
   parent.apiRequestDeviceRefresh(device.deviceNetworkId)
   parent.apiRequestDeviceHealth(device.deviceNetworkId, "chimes")
@@ -156,9 +153,9 @@ void updateVolumeInternal(volume) {
 void playText(text, volumelevel) { log.error "playText not implemented!" }
 void playTextAndRestore(text, volumelevel) { log.error "playTextAndRestore not implemented!" }
 void playTextAndResume(text, volumelevel) { log.error "playTextAndResume not implemented!" }
-def playTrack(trackuri, volumelevel) { log.error "playTrack not implemented!" }
-def playTrackAndRestore(trackuri, volumelevel) { log.error "playTrackAndRestore not implemented!" }
-def playTrackAndResume(trackuri, volumelevel) { log.error "playTrackAndResume not implemented!" }
+void playTrack(trackuri, volumelevel) { log.error "playTrack not implemented!" }
+void playTrackAndRestore(trackuri, volumelevel) { log.error "playTrackAndRestore not implemented!" }
+void playTrackAndResume(trackuri, volumelevel) { log.error "playTrackAndResume not implemented!" }
 
 private boolean isMuted() {
   return device.currentValue("mute") == "muted"

@@ -32,15 +32,15 @@ metadata {
   }
 }
 
-void logInfo(msg) {
+void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
 
-void logDebug(msg) {
+void logDebug(Object msg) {
   if (logEnable) { log.debug msg }
 }
 
-void logTrace(msg) {
+void logTrace(Object msg) {
   if (traceLogEnable) { log.trace msg }
 }
 
@@ -48,11 +48,11 @@ void refresh() {
   parent.refresh(device.getDataValue("src"))
 }
 
-def on() {
+void on() {
   parent.apiWebsocketRequestSetDevice(device.getDataValue("src"), device.getDataValue("zid"), ["on": true])
 }
 
-def off() {
+void off() {
   parent.apiWebsocketRequestSetDevice(device.getDataValue("src"), device.getDataValue("zid"), ["on": false])
 }
 
@@ -71,7 +71,7 @@ void setValues(final Map deviceInfo) {
   // Update state values
   Map stateValues = deviceInfo.subMap(['impulseType', 'lastCommTime', 'lastUpdate', 'nextExpectedWakeup', 'signalStrength'])
   if (stateValues) {
-      state << stateValues
+    state << stateValues
   }
 }
 
