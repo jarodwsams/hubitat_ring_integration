@@ -91,23 +91,21 @@ void setDebugImpulseErrorSetInfoExcludeList(excludeList) {
   state.debugImpulseErrorSetInfoExcludeList = excludeList?.replaceAll("\\s", "")?.split(",") as Set
 }
 
-void installed() {
-  initialize()
-}
+void installed() { initialize() }
 
-void updated() {
-  initialize()
-}
+void updated() { initialize() }
 
 void initialize() {
   logDebug "initialize()"
+
+  parentCheck()
 
   unschedule(silentWebsocketReconnect)
 
   // Setup watchdog
   unschedule(watchDogChecking) // For compatibility with old installs
   unschedule(websocketWatchdog)
-  if ((getChildDevices()?.size() ?: 0) != 0) {
+  if (getChildDevices()) {
     runEvery5Minutes(websocketWatchdog)
   }
 
@@ -115,7 +113,13 @@ void initialize() {
   if (state.hubs) {
     updateTokensAndReconnectWebSocket()
   } else {
-    log.warn "Nothing to initialize..."
+    log.warn "No hubs enabled. Nothing to initialize. Use the Unofficial Ring Connect app to enable hubs"
+  }
+}
+
+void parentCheck() {
+  if (device.parentAppId == null || device.parentDeviceId != null) {
+    log.error("This device can only be installed using the Unofficial Ring Connect app. Remove this device and create it through the app. parentAppId=${device.parentAppId}, parentDeviceId=${device.parentDeviceId}")
   }
 }
 

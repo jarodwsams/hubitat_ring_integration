@@ -61,6 +61,16 @@ metadata {
   }
 }
 
+void installed() { updated() }
+
+void updated() { parentCheck() }
+
+void parentCheck() {
+  if (device.parentDeviceId == null || device.parentAppId != null) {
+    log.error("This device can only be installed using the Ring API Virtual Device. Remove this device and use createDevices in Ring API Virtual Device. parentAppId=${device.parentAppId}, parentDeviceId=${device.parentDeviceId}")
+  }
+}
+
 void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
@@ -237,11 +247,11 @@ void setValues(final Map deviceInfo) {
     }
   }
 
-  // Use containsKey instead of null chuck because alarmInfo == null means an alarm was cleared
+  // Use containsKey instead of null check because alarmInfo == null means an alarm was cleared
   if (deviceInfo.containsKey('alarmInfo')) {
     // @note Other possible values of alarmInfo.state: 'panic'
 
-    final alarmInfo = deviceInfo.alarmInfo?.state
+    final String alarmInfo = deviceInfo.alarmInfo?.state
     checkChanged("entryDelay", alarmInfo == "entry-delay" ? "active" : "inactive")
 
     // These duplicate what the co/smoke alarm devices already display
@@ -249,7 +259,7 @@ void setValues(final Map deviceInfo) {
     checkChanged("fireAlarm", alarmInfo == "fire-alarm" ? "active" : "inactive")
   }
 
-  // Use containsKey instead of null chuck because lastConnectivityCheckError == null means an connectivity error was resolved
+  // Use containsKey instead of null check because lastConnectivityCheckError == null means an connectivity error was resolved
   if (deviceInfo.containsKey('lastConnectivityCheckError')) {
     if (deviceInfo.lastConnectivityCheckError) {
       log.error "Ring connectivity error: ${deviceInfo.lastConnectivityCheckError}"
@@ -258,7 +268,7 @@ void setValues(final Map deviceInfo) {
     }
   }
 
-  // Use containsKey instead of null chuck because transitionDelayEndTimestamp == null means the exit delay ended
+  // Use containsKey instead of null check because transitionDelayEndTimestamp == null means the exit delay ended
   if (deviceInfo.containsKey('transitionDelayEndTimestamp')) {
     checkChanged("exitDelay", deviceInfo.transitionDelayEndTimestamp != null ? "active" : "inactive")
   }
@@ -267,19 +277,23 @@ void setValues(final Map deviceInfo) {
     final Map networks = deviceInfo.networks
 
     if (deviceInfo.containsKey('networkConnection')) {
-      final networkConnection = deviceInfo.networkConnection
-
-      checkChanged("networkConnection", networks.getOrDefault(networkConnection, [type: "unknown"]).type)
+      checkChanged("networkConnection", networks.getOrDefault(deviceInfo.networkConnection, [type: "unknown"]).type)
     }
 
     for (final entry in networks.subMap(['eth0', 'ppp0', 'wlan0'])) {
       final Map network = entry.value
       final String networkKey = entry.key
+
+      if (network == null) {
+        logDebug "Got a null networks key for ${networkKey}. Ignoring"
+        continue
+      }
+
       final String networkType = network.type
 
-      // Sometimes the type isn't included. Just skip updating things for now
+      // Sometimes the type isn't included. Just skip updating things
       if (!networkType) {
-        logDebug "Could not get network.type for ${networkKey}: ${networks}"
+        logDebug "Could not get network.type for ${networkKey}: ${networks}. Ignoring"
         continue
       }
 
@@ -315,7 +329,7 @@ void setValues(final Map deviceInfo) {
   }
 
   if (deviceInfo.acStatus != null) {
-    final acStatus = deviceInfo.acStatus
+    final String acStatus = deviceInfo.acStatus
     checkChanged("acStatus", AC_STATUS.getOrDefault(acStatus, "brownout"))
     checkChanged("powerSource", POWER_SOURCE.getOrDefault(acStatus, "unknown"))
   }
@@ -327,11 +341,7 @@ void setValues(final Map deviceInfo) {
 
     if (checkChanged("volume", volume)) {
       state.prevVolume == prevVolume
-      if (volume == 0) {
-        checkChanged("mute", "muted")
-      } else {
-        checkChanged("mute", "unmuted")
-      }
+      checkChanged("mute", volume == 0 ? "muted" : "unmuted")
     }
   }
 
@@ -377,7 +387,7 @@ void runCleanup() {
 }
 
 boolean checkChanged(final String attribute, final newStatus, final String unit=null, final String type=null) {
-  final boolean changed = device.currentValue(attribute) != newStatus
+  final boolean changed = isStateChange(device, attribute, newStatus.toString())
   if (changed) {
     logInfo "${attribute.capitalize()} for device ${device.label} is ${newStatus}"
   }

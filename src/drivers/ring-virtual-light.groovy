@@ -48,6 +48,25 @@ metadata {
   }
 }
 
+void installed() { updated() }
+
+void updated() {
+  parentCheck()
+
+  unschedule()
+  if (lightPolling) {
+    pollLight()
+  }
+
+  parent.snapshotOption(device.deviceNetworkId, snapshotPolling)
+}
+
+void parentCheck() {
+  if (device.parentAppId == null || device.parentDeviceId != null) {
+    log.error("This device can only be installed using the Unofficial Ring Connect app. Remove this device and create it through the app. parentAppId=${device.parentAppId}, parentDeviceId=${device.parentDeviceId}")
+  }
+}
+
 void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
@@ -77,24 +96,12 @@ void getDings() {
   parent.apiRequestDings()
 }
 
-void setupPolling() {
-  unschedule()
-  if (lightPolling) {
-    pollLight()
-  }
-}
-
 void pollLight() {
   logTrace "pollLight()"
   refresh()
   if (pollLight) {
     runIn(lightInterval, pollLight)  //time in seconds
   }
-}
-
-void updated() {
-  setupPolling()
-  parent.snapshotOption(device.deviceNetworkId, snapshotPolling)
 }
 
 void on() {
@@ -111,7 +118,7 @@ void off() {
 }
 
 void flash() {
-  logInfo "$device was set to flash with a rate of $strobeRate milliseconds for $strobeTimeout seconds"
+  logInfo "${device.displayName} was set to flash with a rate of $strobeRate milliseconds for $strobeTimeout seconds"
   state.strobing = true
   strobeOn()
   runIn(strobeTimeout.toInteger(), off)
@@ -212,7 +219,7 @@ void runCleanup() {
 }
 
 boolean checkChanged(final String attribute, final newStatus, final String unit=null, final String type=null) {
-  final boolean changed = device.currentValue(attribute) != newStatus
+  final boolean changed = isStateChange(device, attribute, newStatus.toString())
   if (changed) {
     logInfo "${attribute.capitalize()} for device ${device.label} is ${newStatus}"
   }

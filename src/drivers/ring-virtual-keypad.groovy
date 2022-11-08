@@ -45,6 +45,16 @@ metadata {
   }
 }
 
+void installed() { updated() }
+
+void updated() { parentCheck() }
+
+void parentCheck() {
+  if (device.parentDeviceId == null || device.parentAppId != null) {
+    log.error("This device can only be installed using the Ring API Virtual Device. Remove this device and use createDevices in Ring API Virtual Device. parentAppId=${device.parentAppId}, parentDeviceId=${device.parentDeviceId}")
+  }
+}
+
 void logInfo(Object msg) {
   if (descriptionTextEnable) { log.info msg }
 }
@@ -110,11 +120,7 @@ void updateVolumeInternal(Integer volume) {
 
   if (checkChanged("volume", volume)) {
     state.prevVolume == prevVolume
-    if (volume == 0) {
-      checkChanged("mute", "muted")
-    } else {
-      checkChanged("mute", "unmuted")
-    }
+    checkChanged("mute", volume == 0 ? "muted" : "unmuted")
   }
 }
 
@@ -184,7 +190,7 @@ void setValues(final Map deviceInfo) {
   // Update state values
   Map stateValues = deviceInfo.subMap(['impulseType', 'lastCommTime', 'lastUpdate', 'signalStrength'])
   if (stateValues) {
-      state << stateValues
+    state << stateValues
   }
 }
 
@@ -202,7 +208,7 @@ void runCleanup() {
 }
 
 boolean checkChanged(final String attribute, final newStatus, final String unit=null, final String type=null) {
-  final boolean changed = device.currentValue(attribute) != newStatus
+  final boolean changed = isStateChange(device, attribute, newStatus.toString())
   if (changed) {
     logInfo "${attribute.capitalize()} for device ${device.label} is ${newStatus}"
   }
