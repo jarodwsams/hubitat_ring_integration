@@ -74,6 +74,17 @@ void setValues(final Map deviceInfo) {
   Map stateValues = deviceInfo.subMap(['componentDevices', 'impulseType', 'lastCommTime', 'lastUpdate', 'nextExpectedWakeup', 'signalStrength'])
   if (stateValues) {
     state << stateValues
+
+    if (stateValues.impulseType?.startsWith('firmware-update.')) {
+      String impulseTypeSuffix = stateValues.impulseType.substring(16)
+
+      if (impulseTypeSuffix in ['canceled', 'downloading', 'reverted', 'started', 'succeeded', 'user-aborted', 'verified']) {
+        log.warn('Firmware update ' + impulseTypeSuffix)
+      }
+      else if (impulseTypeSuffix in ['failed', 'unsuccessful']) {
+        log.error('Firmware update ' + impulseTypeSuffix)
+      }
+    }
   }
 }
 
@@ -81,7 +92,7 @@ void setPassthruValues(final Map deviceInfo) {
   logDebug "setPassthruValues(${deviceInfo})"
 
   if (deviceInfo.percent != null) {
-    log.warn "${device.label} is updating firmware: ${deviceInfo.percent}% complete"
+    log.warn "Firmware update ${deviceInfo.percent}% complete"
   }
 }
 

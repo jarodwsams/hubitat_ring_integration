@@ -925,7 +925,7 @@ Map<String, Map> parseDeviceInfoDocType(final Map json, final String assetId, fi
        */
 
       // adapter.v1 only contains changed values when msgtype == "DataUpdate". When msgtype == "DeviceInfoDocGetList" it contains all values
-      // context.v1.adapter.v1 When present, seems to contain all values
+      // context.v1.adapter.v1. When present, seems to contain all values
       final Map tmpAdapter = deviceJson.adapter?.v1
 
       if (tmpAdapter) {
@@ -966,7 +966,7 @@ Map<String, Map> parseDeviceInfoDocType(final Map json, final String assetId, fi
      * Begin parse deviceJson device.v1
      */
 
-    // device.v1 only contains changed values when msgtype == "DataUpdate". When msgtype == "DeviceInfoDocGetList" it contains all values
+    // device.v1 only contains changed values when msgtype == "DataUpdate". When msgtype == "DeviceInfoDocGetList" it contains all values.
     // When present, context.v1.device.v1 seems to contain all values
     // @note Some keys, like alarminfo and transitionDelayEndTimestamp, are set to null on disable, but in subsequent
     //       message are omitted entirely. This could mean that there are some scenarios where
@@ -1135,14 +1135,12 @@ void sendUpdate(final String assetKind, final String hubZid, final Map deviceInf
         setInitialDeviceDataValues(d, assetKind, hubZid, deviceInfo)
       }
     }
-  } else {
-    if (!suppressMissingDeviceMessages) {
-      if (DEVICE_TYPE_NAMES.containsKey(deviceType)) {
-        logMissingDeviceMsg("sendUpdate", deviceInfo.zid, deviceInfo.name)
-      } else {
-        log.warn "Device ${deviceInfo.name} of type ${deviceType} with zid ${deviceInfo.zid} is not currently supported"
-        log.warn(JsonOutput.toJson(deviceInfo))
-      }
+  } else if (!suppressMissingDeviceMessages) {
+    if (DEVICE_TYPE_NAMES.containsKey(deviceType)) {
+      logMissingDeviceMsg("sendUpdate", deviceInfo.zid, deviceInfo.name)
+    } else {
+      log.warn "Device ${deviceInfo.name} of type ${deviceType} with zid ${deviceInfo.zid} is not currently supported"
+      log.warn(JsonOutput.toJson(deviceInfo))
     }
   }
 }
