@@ -383,8 +383,12 @@ def snapshots() {
 
       for (final String snappableDNI in enabledSnappables) {
         ChildDeviceWrapper child = getChildDevice(snappableDNI)
-        final URI url = new URI("${getFullLocalApiServerUrl()}/snapshot/${URLEncoder.encode(snappable, "UTF-8")}?access_token=${state.accessToken}")
-        paragraph("""<u><b>${child).label}:</b></u>\n<b>URL</b>: $url\n<img height="180" width="320" src="${url.path}?${url.query}" alt="Snapshot" />""")
+        if (child != null) {
+          final URI url = new URI("${getFullLocalApiServerUrl()}/snapshot/${URLEncoder.encode(getRingDeviceId(snappableDNI), "UTF-8")}?access_token=${state.accessToken}")
+          paragraph("""<u><b>${child.label}:</b></u>\n<b>URL</b>: $url\n<img height="180" width="320" src="${url.path}?${url.query}" alt="Snapshot" />""")
+        } else {
+          msg += "Error getting child for dni '${snappableDNI}'"
+        }
       }
     }
     donationPageSection()
@@ -1323,19 +1327,45 @@ void apiRequestSnapshotTimestamps(List<Integer> doorbotIds) {
       Map body = resp.getData()
       logTrace "apiRequestSnapshotTimestamps for ${doorbotIds} succeeded, body: ${JsonOutput.toJson(body)}"
 
-      // @todo Consider comparing new timestamps to old timestamps. Could use this to avoid getting a snapshot when there is no update
-      state.lastSnapshotTimestamps = body.timestamps
+      Map newTimestamps = body.timestamps.collectEntries { Map it -> [(it.doorbot_id.toString()): it.timestamp]}
 
-      final List returnedDoorbotIds = body.timestamps*.doorbot_id
+      final Set nonReturnedDoorbotIds = doorbotIds.toSet() - body.timestamps.collect { Map it -> it.doorbot_id }.toSet()
+
+      Set<Integer> updatedDoorbotIds = [].toSet()
+
+      def lastTimestamps = state.lastSnapshotTimestamps
+      if (lastTimestamps instanceof Map) {
+        for (Integer doorbotId in doorbotIds) {
+          // Map key becomes a string once it is saved to state
+          String doorbotIdStr = doorbotId
+          final curNewTimestamp = newTimestamps[doorbotIdStr]
+          final curLastTimestamp = lastTimestamps[doorbotIdStr]
+
+          if (curNewTimestamp == null) {
+
+          } else if (curLastTimestamp == null) {
+            logDebug "apiRequestSnapshotTimestamps: No last timestamp found for ${doorbotIdStr}: ${lastTimestamps}"
+          } else if (curNewTimestamp != curLastTimestamp) {
+            updatedDoorbotIds.add(doorbotId)
+          } else {
+            logDebug "apiRequestSnapshotTimestamps: Returned timestamp for '${doorbotIdStr}' is the same as before, no"
+          }
+        }
+      } else {
+        updatedDoorbotIds = newTimestamps.keySet()
+      }
+
+      state.lastSnapshotTimestamps = newTimestamps
+
+      final Set returnedDoorbotIds = newTimestamps.keySet()
 
       logTrace "apiRequestSnapshotTimestamps returned these doorbots: ${returnedDoorbotIds}"
-      final Set nonReturnedDoorbotIds = doorbotIds.toSet() - returnedDoorbotIds.toSet()
 
-      if (nonReturnedDoorbotIds) {
+      if (nonReturnedDoorbotIds.size() > 0) {
         log.warn("apiRequestSnapshotTimestamps returned fewer doorbot ids than requested. Missing doorbots: ${nonReturnedDoorbotIds}")
       }
 
-      runIn(15, apiRequestSnapshotImages, [data: [doorbotIds: returnedDoorbotIds]])
+      runIn(15, apiRequestSnapshotImages, [data: [doorbotIds: updatedDoorbotIds]])
     }
   }
 }
