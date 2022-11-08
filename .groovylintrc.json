@@ -1,0 +1,86 @@
+{
+    "extends": "recommended",
+    "rules": {
+        "Indentation": {
+            "spacesPerIndentLevel": 2
+        },
+        "UnnecessaryGString": {
+            "enabled": false
+        },
+        "LineLength": {
+            "enabled": false
+        },
+        "DuplicateMapLiteral": {
+            "enabled": false
+        },
+        "CompileStatic": {
+            "enabled": false
+        },
+        "InsecureRandom": {
+            "enabled": false
+        },
+        "Instanceof": {
+            "enabled": false
+        },
+        "DuplicateStringLiteral": {
+            "enabled": false
+        },
+        "DuplicateListLiteral": {
+            "enabled": false
+        },
+        "DuplicateNumberLiteral": {
+            "enabled": false
+        },
+        "MethodReturnTypeRequired": {
+            "enabled": false
+        },
+        "MethodParameterTypeRequired": {
+            "enabled": false
+        },
+        "ParameterCount": {
+            "enabled": false
+        },
+        "MethodCount": {
+            "enabled": false
+        },
+        "FileEndsWithoutNewline": {
+            "enabled": false
+        },
+        "UnnecessaryGetter": {
+            "enabled": false
+        },
+        "NoDef": {
+            "enabled": false
+        },
+        "CatchException": {
+            "enabled": false
+        },
+        "CouldBeSwitchStatement": {
+            "enabled": false
+        },
+        "ReturnsNullInsteadOfEmptyCollection": {
+            "enabled": false
+        },
+        "ParameterReassignment": {
+            "enabled": false
+        },
+        "AssignmentToStaticFieldFromInstanceMethod": {
+            "enabled": false
+        },
+        "FactoryMethodName": {
+            "enabled": false
+        },
+        "NestedForLoop": {
+            "enabled": false
+        },
+        "NestedBlockDepth": {
+            "enabled": false
+        },
+        "MethodSize": {
+            "enabled": false
+        },
+        "BuilderMethodWithSideEffects": {
+            "enabled": false
+        }
+    }
+}
