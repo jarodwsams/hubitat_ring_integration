@@ -422,6 +422,8 @@ def deviceDiscovery() {
 
   return dynamicPage(name: "deviceDiscovery", title: "Discovery Started!", nextPage: "addDevices", uninstall: true) {
     section("Select the devices you want created as Hubitat devices") {
+      paragraph "NOTE: If a device is missing from the list below, ensure that the device is shared to the Ring account used by hubitat"
+
       input "selectedDevices", "enum", title: "Select Ring Device(s)", multiple: true, options: getAvailableDevicesOptions()
     }
   }
