@@ -1,3 +1,4 @@
+/* groovylint-disable Indentation */
 /**
  *  Ring Virtual Light Device Driver
  *
@@ -58,7 +59,7 @@ void updated() {
     pollLight()
   }
 
-  parent.snapshotOption(device.deviceNetworkId, snapshotPolling)
+  parent.updateEnabledSnappables()
 }
 
 void parentCheck() {

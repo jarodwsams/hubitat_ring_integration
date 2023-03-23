@@ -54,7 +54,7 @@ void updated() {
     pollLight()
   }
 
-  parent.snapshotOption(device.deviceNetworkId, snapshotPolling)
+  parent.updateEnabledSnappables()
 }
 
 void parentCheck() {

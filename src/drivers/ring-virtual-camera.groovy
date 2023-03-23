@@ -1,3 +1,4 @@
+/* groovylint-disable Indentation */
 /**
  *  Ring Virtual Camera Device Driver
  *
@@ -47,7 +48,7 @@ void installed() {
 void updated() {
   parentCheck()
 
-  parent.snapshotOption(device.deviceNetworkId, snapshotPolling)
+  parent.updateEnabledSnappables()
 }
 
 void parentCheck() {

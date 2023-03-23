@@ -45,7 +45,7 @@ void installed() { updated() }
 void updated() {
   parentCheck()
 
-  parent.snapshotOption(device.deviceNetworkId, snapshotPolling)
+  parent.updateEnabledSnappables()
 }
 
 void parentCheck() {
