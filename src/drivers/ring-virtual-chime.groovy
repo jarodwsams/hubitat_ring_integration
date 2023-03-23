@@ -1,3 +1,4 @@
+/* groovylint-disable Indentation */
 /**
  *  Ring Virtual Chime Device Driver
  *
@@ -33,6 +34,9 @@ metadata {
 
     command "playDing"
     command "playMotion"
+
+    command "clearSnooze"
+    command "snooze", [[name: 'Time', type: 'NUMBER', description: 'Snooze sounces for x minutes. [0..1440]']]
   }
 
   preferences {
@@ -74,6 +78,8 @@ void refresh() {
   logDebug "refresh()"
   parent.apiRequestDeviceRefresh(device.deviceNetworkId)
   parent.apiRequestDeviceHealth(device.deviceNetworkId, "chimes")
+
+  parent.apiRequestDeviceGet(device.deviceNetworkId, "chimes", "linked_doorbots")
 }
 
 void beep() { playMotion() }
@@ -82,7 +88,7 @@ void playMotion() {
   if (isMuted()) {
     logInfo "playMotion: Not playing because device is muted"
   } else {
-    parent.apiRequestDeviceControl(device.deviceNetworkId, "chimes", "play_sound", [kind: "motion"])
+    parent.apiRequestDeviceSet(device.deviceNetworkId, "chimes", action: 'play_sound', query: [kind: "motion"], method: 'Post')
   }
 }
 
@@ -90,8 +96,22 @@ void playDing() {
   if (isMuted()) {
     logInfo "playDing: Not playing because device is muted"
   } else {
-    parent.apiRequestDeviceControl(device.deviceNetworkId, "chimes", "play_sound", [kind: "ding"])
+    parent.apiRequestDeviceSet(device.deviceNetworkId, "chimes", action: 'play_sound', query: [kind: "ding"], method: 'Post')
   }
+}
+
+void snooze(minutes) {
+  // Value must be in [1, 1440 (24 * 60)]
+  minutes = Math.min(Math.max(minutes == null ? 60 : minutes.toInteger(), 1), 24 * 60)
+
+  logTrace "Requesting snooze for $minutes min"
+
+  parent.apiRequestDeviceSet(device.deviceNetworkId, "chimes", action: 'do_not_disturb', method: 'Post', body: [time: minutes])
+}
+
+void clearSnooze() {
+  logTrace "Clearing snooze"
+  parent.apiRequestDeviceSet(device.deviceNetworkId, "chimes", action: 'do_not_disturb', method: 'Post', body: [:])
 }
 
 void setVolume(volumelevel) {
@@ -103,9 +123,10 @@ void setVolume(volumelevel) {
   if (currentVolume != volumelevel) {
     logTrace "requesting volume change to ${volumelevel}"
 
+    // Chime only accepts volume from 0 to 10
     final Integer sentValue = volumelevel / 10
 
-    parent.apiRequestDeviceSet(device.deviceNetworkId, "chimes", null, ["chime[settings][volume]": sentValue])
+    parent.apiRequestDeviceSet(device.deviceNetworkId, "chimes", method: 'Put', body: [chime: [settings: [volume: sentValue]]])
   }
   else {
     logInfo "Already at volume."
@@ -185,17 +206,22 @@ void handleDeviceControl(final String action, final Map msg, final Map query) {
   }
 }
 
-void handleDeviceSet(final String action, final Map msg, final Map query) {
+void handleDeviceSet(final Map msg, final Map arguments) {
+  String action = arguments.action
+
   if (action == null) {
-    if (query?.containsKey("chime[settings][volume]")) {
-      updateVolumeInternal(query["chime[settings][volume]"])
+    if (arguments.body?.settings?.volume) {
+      updateVolumeInternal(arguments.body?.settings?.volume)
     }
     else {
-      log.error "handleDeviceSet unsupported null action with query ${query}"
+      log.error "handleDeviceSet unsupported null action with body: ${arguments.body}"
     }
   }
+  else if (action == 'play_sound' || action == 'do_not_disturb') {
+    // Nothing to do here
+  }
   else {
-    log.error "handleDeviceSet unsupported action ${action}, msg=${msg}, query=${query}"
+    log.error "handleDeviceSet unsupported action ${action}, msg=${msg}, arguments=${arguments}"
   }
 }
 

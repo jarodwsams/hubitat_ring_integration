@@ -84,11 +84,11 @@ void getDings() {
 }
 
 void off() {
-  parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "siren_off")
+  setSirenInternal('off')
 }
 
 void siren() {
-  parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "siren_on")
+  setSirenInternal('on')
 }
 
 void strobe(value = "strobe") {
@@ -103,7 +103,9 @@ void push(Integer button) {
   log.error "Push not implemented for device type ${device.getDataValue("kind")}"
 }
 
-void handleDeviceSet(final String action, final Map msg, final Map query) {
+void handleDeviceSet(final Map msg, final Map arguments) {
+  String action = arguments.action
+
   if (action == "siren_on") {
     if (device.currentValue("alarm") != "both") {
       checkChanged("alarm", "siren")
@@ -115,7 +117,7 @@ void handleDeviceSet(final String action, final Map msg, final Map query) {
     checkChanged('alarm', "off")
   }
   else {
-    log.error "handleDeviceSet unsupported action ${action}, msg=${msg}, query=${query}"
+    log.error "handleDeviceSet unsupported action ${action}, msg=${msg}, arguments=${arguments}"
   }
 }
 
@@ -176,6 +178,10 @@ void motionOff() {
 void runCleanup() {
   device.removeDataValue("firmware") // Is an attribute now
   device.removeDataValue("device_id")
+}
+
+void setSirenInternal(String state) {
+    parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", action: "siren_" + state, method: 'Put')
 }
 
 boolean checkChanged(final String attribute, final newStatus, final String unit=null, final String type=null) {

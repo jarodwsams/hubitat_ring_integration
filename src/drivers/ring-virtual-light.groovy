@@ -107,7 +107,7 @@ void pollLight() {
 
 void on() {
   state.strobing = false
-  parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "floodlight_light_on")
+  setFloodlightInternal('on')
 }
 
 void off() {
@@ -115,7 +115,7 @@ void off() {
     unschedule()
   }
   state.strobing = false
-  parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "floodlight_light_off")
+  setFloodlightInternal('off')
 }
 
 void flash() {
@@ -128,18 +128,20 @@ void flash() {
 void strobeOn() {
   if (state.strobing) {
     runInMillis(strobeRate.toInteger(), strobeOff)
-    parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "floodlight_light_on")
+    setFloodlightInternal('on')
   }
 }
 
 void strobeOff() {
   if (state.strobing) {
     runInMillis(strobeRate.toInteger(), strobeOn)
-    parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", "floodlight_light_off")
+    setFloodlightInternal('off')
   }
 }
 
-void handleDeviceSet(final String action, final Map msg, final Map query) {
+void handleDeviceSet(final Map msg, final Map arguments) {
+  String action = arguments.action
+
   if (action == "floodlight_light_on") {
     checkChanged("switch", "on")
   }
@@ -147,7 +149,7 @@ void handleDeviceSet(final String action, final Map msg, final Map query) {
     checkChanged("switch", "off")
   }
   else {
-    log.error "handleDeviceSet unsupported action ${action}, msg=${msg}, query=${query}"
+    log.error "handleDeviceSet unsupported action ${action}, msg=${msg}, arguments=${arguments}"
   }
 }
 
@@ -217,6 +219,10 @@ void runCleanup() {
   state.remove('lastActivity')
   device.removeDataValue("firmware") // Is an attribute now
   device.removeDataValue("device_id")
+}
+
+void setFloodlightInternal(String state) {
+    parent.apiRequestDeviceSet(device.deviceNetworkId, "doorbots", action: "floodlight_light_" + state, method: 'Put')
 }
 
 boolean checkChanged(final String attribute, final newStatus, final String unit=null, final String type=null) {

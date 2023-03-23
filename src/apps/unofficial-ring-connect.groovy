@@ -1120,52 +1120,32 @@ void apiRequestDeviceRefresh(final String dni) {
 }
 
 /**
- * Makes a ring api request to control a device
- * @param dni DNI of device to refresh
- * @param kind Kind of device ("chimes", etc.)
- * @param action Action to perform on device ("floodlight_light_off", etc)
- * @param query Action to perform on device ([kind: "motion"], etc)
- */
-void apiRequestDeviceControl(final String dni, final String kind, final String action, final Map query) {
-  logTrace("apiRequestDeviceControl(${dni}, ${kind}, ${action}, ${query})")
-
-  Map params = makeClientsApiParams('/' + kind + '/' + getRingDeviceId(dni) + '/' + action,
-                                    [contentType: TEXT, requestContentType: JSON, body: "", query: query])
-
-  apiRequestAsyncCommon("apiRequestDeviceControl", "Post", params, false) { resp ->
-    logTrace "apiRequestDeviceControl ${kind} ${action} for ${dni} succeeded"
-
-    Map body = resp.getData() ? resp.getJson() : null
-    ChildDeviceWrapper d = getChildDevice(dni)
-    if (d) {
-      d.handleDeviceControl(action, body, query)
-    } else {
-      log.error "apiRequestDeviceControl ${kind}.${action} (${query}) cannot get child device with dni ${dni}"
-    }
-  }
-}
-
-/**
  * Makes a ring api request to set a value for a device
  * @param dni DNI of device to refresh
- * @param kind Kind of device ("doorbots", etc.)
+ * @param kind Kind of device ("doorbots", "chimes", etc.)
  * @param action Action to perform on device ("floodlight_light_off", etc)
  */
-void apiRequestDeviceSet(final String dni, final String kind, final String action = null, final Map query = null) {
-  logTrace("apiRequestDeviceSet(${dni}, ${kind}, ${action}, ${query})")
+void apiRequestDeviceSet(Map arguments, final String dni, final String kind) {
+  logTrace("apiRequestDeviceSet(${dni}, ${kind}, ${arguments})")
+
+  String action = arguments.action
 
   Map params = makeClientsApiParams('/' + kind + '/' + getRingDeviceId(dni) + (action ? "/${action}" : ""),
-                                    [contentType: TEXT, requestContentType: JSON, body: "", query: query])
+                                    [contentType: TEXT, requestContentType: JSON, body: arguments.getOrDefault('body', ""),
+                                     query: arguments.query])
 
-  apiRequestAsyncCommon("apiRequestDeviceSet", "Put", params, false) { resp ->
-    logTrace "apiRequestDeviceSet ${kind} ${action} for ${dni} succeeded"
+  String httpFunction = arguments.getOrDefault('method', 'Put')
 
+  apiRequestAsyncCommon("apiRequestDeviceSet", httpFunction, params, false) { resp ->
     Map body = resp.getData() ? resp.getJson() : null
+
+    logTrace "apiRequestDeviceSet $kind ($arguments) for $dni succeeded, body: ${JsonOutput.toJson(body)}"
+
     ChildDeviceWrapper d = getChildDevice(dni)
     if (d) {
-      d.handleDeviceSet(action, body, query)
+      d.handleDeviceSet(body, arguments)
     } else {
-      log.error "apiRequestDeviceSet ${kind}.${action} cannot get child device with dni ${dni}"
+      log.error "apiRequestDeviceSet $kind ($arguments) cannot get child device with dni $dni"
     }
   }
 }
@@ -1892,6 +1872,6 @@ String getRingDeviceId(String id) {
   "stickup_cam_lunar": [name: "Ring Stick Up Cam Battery/Solar (2nd gen)", driver: "Ring Virtual Camera with Siren"],
   "stickup_cam_mini": [name: "Ring Indoor Cam", driver: "Ring Virtual Camera with Siren"],
   "stickup_cam_v3": [name: "Ring Stick Up Cam (1st gen)", driver: "Ring Virtual Camera"],
-  "stickup_cam_v4": [name: "Ring Spotlight Cam Battery/Solar", driver: "Ring Virtual Light"],
+  "stickup_cam_v4": [name: "Ring Spotlight Cam Battery/Solar", driver: "Ring Virtual Camera"], // This appears to also be a Spotlight cam
   "stickup_cam": [name: "Ring Stick Up Cam (1st gen)", driver: "Ring Virtual Camera"],
 ].asImmutable()
