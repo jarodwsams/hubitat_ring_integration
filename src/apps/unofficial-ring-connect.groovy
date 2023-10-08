@@ -1752,6 +1752,7 @@ String getRingDeviceId(String id) {
   "cocoa_camera": [name: "Ring Stick Up Cam", driver: "Ring Virtual Camera with Siren"],
   "cocoa_doorbell": [name: "Ring Video Doorbell 2020", driver: "Ring Virtual Camera"],
   "cocoa_floodlight": [name: "Ring Floodlight Cam Wired Plus", driver: "Ring Virtual Light with Siren"],
+  "cocoa_spotlight": [name: "Ring Spotlight Cam Plus", driver: "Ring Virtual Light with Siren", dingable: true],
   "doorbell_graham_cracker": [name: "Ring Video Doorbell Wired", driver: "Ring Virtual Camera"],
   "doorbell_portal": [name: "Ring Peephole Cam", driver: "Ring Virtual Camera"],
   "doorbell_oyster": [name: "Ring Video Doorbell 4", driver: "Ring Virtual Camera"],
