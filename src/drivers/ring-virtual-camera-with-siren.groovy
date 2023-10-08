@@ -159,6 +159,10 @@ void handleRefresh(final Map msg) {
       checkChanged("rssi", health.rssi)
     }
   }
+
+  if (msg.is_sidewalk_gateway && msg.sidewalk_connection) {
+    log.warn("Your device is being used as an Amazon sidewalk device.")
+  }
 }
 
 void motionOff() {
