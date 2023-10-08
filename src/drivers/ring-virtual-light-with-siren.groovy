@@ -214,7 +214,7 @@ void handleRefresh(final Map msg) {
     }
   }
 
-  if (msg.is_sidewalk_gateway) {
+  if (msg.is_sidewalk_gateway && msg.sidewalk_connection) {
     log.warn("Your device is being used as an Amazon sidewalk device.")
   }
 
